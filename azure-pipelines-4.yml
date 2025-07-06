@@ -1,0 +1,44 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  dockerRegistryServiceConnection: 'azure-subscription'
+  imageRepository: 'n8n'
+  containerRegistry: 'n8nregistr.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+stages:
+  - stage: Build
+    displayName: Build and push stage
+    jobs:
+      - job: Build
+        displayName: Build
+        steps:
+          - task: Docker@2
+            displayName: Build and push an image to container registry
+            inputs:
+              command: buildAndPush
+              repository: $(imageRepository)
+              dockerfile: $(dockerfilePath)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+                latest
+
+  - stage: Deploy
+    displayName: Deploy stage
+    dependsOn: Build
+    jobs:
+      - job: Deploy
+        displayName: Deploy
+        steps:
+          - task: AzureContainerApps@1
+            inputs:
+              azureSubscription: 'azure-subscription'
+              containerAppName: 'n8n-container'
+              resourceGroup: 'n8n-rg'
+              imageToDeploy: '$(containerRegistry)/$(imageRepository):$(tag)'
